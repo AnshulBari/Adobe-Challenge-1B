@@ -1,0 +1,29 @@
+# Core dependencies for Document Intelligence System
+# All packages optimized for CPU-only execution and Python 3.13 compatibility
+
+# PDF processing
+pdfplumber>=0.9.0
+
+# Sentence transformers for embeddings (includes torch, transformers)
+sentence-transformers>=2.2.0
+
+# Natural language processing
+nltk>=3.8
+
+# Numerical computing - compatible with Python 3.13
+numpy>=1.24.0
+
+# Standard libraries (usually included with Python)
+# json - built-in
+# os - built-in  
+# re - built-in
+# time - built-in
+# logging - built-in
+# datetime - built-in
+# typing - built-in
+
+# Optional: For enhanced PDF processing
+PyPDF2>=3.0.0
+
+# Note: The all-MiniLM-L6-v2 model will be downloaded automatically
+# on first use (~80MB). Total package size should be < 500MB.
