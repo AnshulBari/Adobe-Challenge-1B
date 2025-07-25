@@ -1,0 +1,43 @@
+version: '3.8'
+
+services:
+  document-intelligence:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    container_name: adobe-challenge-1b
+    volumes:
+      - ./sample_documents:/app/input:ro
+      - ./output:/app/output:rw
+      - model-cache:/app/.cache
+    environment:
+      - PYTHONUNBUFFERED=1
+      - LOG_LEVEL=INFO
+      - TRANSFORMERS_CACHE=/app/.cache
+      - HF_HOME=/app/.cache
+      - TORCH_HOME=/app/.cache
+    mem_limit: 2g
+    cpus: '2.0'
+    restart: unless-stopped
+    
+    # Default command - can be overridden
+    command: python cli.py --pdf-dir /app/input --persona "Investment Analyst" --job "Analyze revenue trends" --output /app/output/results.json
+
+  # Service for running validation
+  validator:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: adobe-challenge-1b-validator
+    volumes:
+      - model-cache:/app/.cache
+    environment:
+      - PYTHONUNBUFFERED=1
+      - LOG_LEVEL=DEBUG
+    mem_limit: 2g
+    command: python validate_system.py
+    profiles: ["validation"]
+
+volumes:
+  model-cache:
+    driver: local
