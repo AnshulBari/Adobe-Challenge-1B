@@ -3,6 +3,7 @@ Test script for Document Intelligence System
 
 This script demonstrates the system capabilities with sample scenarios
 and validates performance against the challenge constraints.
+Includes tests for both structured analysis and cohesive summary generation.
 """
 
 import time
@@ -10,6 +11,7 @@ import json
 import os
 from pathlib import Path
 from document_intelligence import DocumentIntelligenceProcessor
+from cohesive_summarizer import CohesiveSummarizer
 
 
 def create_sample_directory():
@@ -210,8 +212,13 @@ def main():
     
     personas = test_sample_personas()
     results = []
+    cohesive_results = []
     
-    for i, scenario in enumerate(personas[:3], 1):  # Test first 3 scenarios
+    # Test first 3 scenarios with both approaches
+    for i, scenario in enumerate(personas[:3], 1):
+        print(f"\n🔄 SCENARIO {i}: {scenario['persona']}")
+        
+        # Test structured approach
         success, proc_time, result = run_sample_test(
             pdf_dir=sample_dir,
             persona=scenario['persona'],
@@ -223,38 +230,179 @@ def main():
             'scenario': scenario,
             'success': success,
             'processing_time': proc_time,
-            'result': result
+            'result': result,
+            'approach': 'structured'
         })
+        
+        # Test cohesive approach
+        cohesive_success, cohesive_time, cohesive_result = test_cohesive_summarizer(
+            test_name=f"Cohesive Test {i}",
+            persona=scenario['persona'],
+            job=scenario['job'],
+            pdf_dir=sample_dir
+        )
+        
+        cohesive_results.append({
+            'scenario': scenario,
+            'success': cohesive_success,
+            'processing_time': cohesive_time,
+            'result': cohesive_result,
+            'approach': 'cohesive'
+        })
+    
+    # Run comparison test for Investment Analyst
+    if personas:
+        print(f"\n🔍 APPROACH COMPARISON TEST")
+        compare_approaches(
+            personas[0]['persona'], 
+            personas[0]['job'], 
+            sample_dir
+        )
     
     # Summary
     print("\n" + "="*60)
     print("TEST SUMMARY")
     print("="*60)
     
-    successful_tests = sum(1 for r in results if r['success'])
-    total_tests = len(results)
-    avg_time = sum(r['processing_time'] for r in results if r['success']) / max(successful_tests, 1)
+    # Combine all results
+    all_results = results + cohesive_results
+    successful_tests = sum(1 for r in all_results if r['success'])
+    total_tests = len(all_results)
+    avg_time = sum(r['processing_time'] for r in all_results if r['success']) / max(successful_tests, 1)
     
+    print(f"Total Tests: {total_tests} ({len(results)} structured + {len(cohesive_results)} cohesive)")
     print(f"Tests Passed: {successful_tests}/{total_tests}")
     print(f"Average Processing Time: {avg_time:.2f}s")
     print(f"Time Constraint Met: {'✓' if avg_time <= 60 else '✗'}")
     
+    # Structured analysis results
+    print(f"\n📋 STRUCTURED ANALYSIS RESULTS:")
     for i, result in enumerate(results, 1):
         status = "✓ PASS" if result['success'] else "✗ FAIL"
         print(f"  Test {i} ({result['scenario']['persona']}): {status}")
         if result['success']:
             print(f"    Processing Time: {result['processing_time']:.2f}s")
     
-    print(f"\nOutput files generated in current directory:")
-    output_files = [f for f in os.listdir('.') if f.startswith('test_output_') and f.endswith('.json')]
-    for file in output_files:
+    # Cohesive summary results
+    print(f"\n📄 COHESIVE SUMMARY RESULTS:")
+    for i, result in enumerate(cohesive_results, 1):
+        status = "✓ PASS" if result['success'] else "✗ FAIL"
+        print(f"  Test {i} ({result['scenario']['persona']}): {status}")
+        if result['success']:
+            print(f"    Processing Time: {result['processing_time']:.2f}s")
+            if result['result']:
+                word_count = result['result']['metadata']['summary_word_count']
+                print(f"    Word Count: {word_count}/500")
+    
+    print(f"\n📁 Output files generated:")
+    output_files = [f for f in os.listdir('.') if 
+                   (f.startswith('test_output_') or f.startswith('test_cohesive_')) 
+                   and f.endswith('.json')]
+    for file in sorted(output_files):
         print(f"  {file}")
     
     print("\n" + "="*60)
     print("TEST COMPLETE")
     print("="*60)
-    print("System ready for production use!")
+    print("✅ Both structured analysis and cohesive summary approaches tested!")
+    print("📊 Choose approach based on your needs:")
+    print("   • Structured Analysis: Detailed sections and rankings")
+    print("   • Cohesive Summary: Flowing 500-word narratives")
     print("Add more PDF files to sample_documents/ for extended testing.")
+
+
+def test_cohesive_summarizer(test_name: str, persona: str, job: str, pdf_dir: str, max_words: int = 500):
+    """Test cohesive summarizer functionality."""
+    print(f"\n📄 Testing Cohesive Summarizer: {test_name}")
+    print(f"Persona: {persona}")
+    print(f"Job: {job}")
+    print(f"Max Words: {max_words}")
+    print(f"PDF Directory: {pdf_dir}")
+    print("-" * 60)
+    
+    try:
+        # Initialize summarizer
+        summarizer = CohesiveSummarizer()
+        
+        # Record start time
+        start_time = time.time()
+        
+        # Generate cohesive summary
+        result = summarizer.generate_cohesive_summary(
+            pdf_dir=pdf_dir,
+            persona=persona,
+            job=job,
+            max_words=max_words
+        )
+        
+        # Calculate processing time
+        processing_time = time.time() - start_time
+        
+        # Save result
+        output_file = f"test_cohesive_{test_name.lower().replace(' ', '_')}.json"
+        with open(output_file, 'w', encoding='utf-8') as f:
+            json.dump(result, f, indent=2, ensure_ascii=False)
+        
+        # Validate results
+        metadata = result['metadata']
+        summary = result['cohesive_summary']
+        word_count = metadata['summary_word_count']
+        
+        print(f"✅ COHESIVE SUMMARY SUCCESS")
+        print(f"  Processing Time: {processing_time:.2f}s")
+        print(f"  Documents Processed: {len(metadata['input_documents'])}")
+        print(f"  Content Chunks: {metadata['total_content_chunks']}")
+        print(f"  Summary Word Count: {word_count}")
+        print(f"  Word Limit Compliance: {'✓' if word_count <= max_words else '✗'}")
+        print(f"  Output File: {output_file}")
+        
+        # Show summary preview
+        preview = summary[:150] + "..." if len(summary) > 150 else summary
+        print(f"  Preview: {preview}")
+        
+        return True, processing_time, result
+        
+    except Exception as e:
+        print(f"❌ COHESIVE SUMMARY FAILED")
+        print(f"ERROR: {str(e)}")
+        return False, 0, None
+
+
+def compare_approaches(persona: str, job: str, pdf_dir: str):
+    """Compare structured analysis vs cohesive summary approaches."""
+    print(f"\n🔄 Comparing Approaches: {persona}")
+    print("=" * 60)
+    
+    # Test structured approach
+    print("1. STRUCTURED ANALYSIS:")
+    struct_success, struct_time, struct_result = run_sample_test(
+        pdf_dir, persona, job, f"Structured {persona}"
+    )
+    
+    # Test cohesive approach
+    print("\n2. COHESIVE SUMMARY:")
+    cohesive_success, cohesive_time, cohesive_result = test_cohesive_summarizer(
+        f"Cohesive {persona}", persona, job, pdf_dir
+    )
+    
+    # Comparison
+    print(f"\n📊 COMPARISON RESULTS:")
+    print("-" * 30)
+    print(f"Structured Analysis:")
+    print(f"  Success: {'✓' if struct_success else '✗'}")
+    print(f"  Time: {struct_time:.2f}s")
+    if struct_result:
+        print(f"  Sections Found: {len(struct_result.get('extracted_sections', []))}")
+    
+    print(f"Cohesive Summary:")
+    print(f"  Success: {'✓' if cohesive_success else '✗'}")
+    print(f"  Time: {cohesive_time:.2f}s")
+    if cohesive_result:
+        print(f"  Word Count: {cohesive_result['metadata']['summary_word_count']}")
+    
+    print(f"\nRecommendation: {'Cohesive Summary for unified content' if cohesive_success else 'Structured Analysis for detailed sections'}")
+    
+    return struct_success and cohesive_success
 
 
 if __name__ == "__main__":

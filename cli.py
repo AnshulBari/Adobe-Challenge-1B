@@ -1,7 +1,6 @@
 """
-Command Line Interface for Document Intelligence System
-
-Provides an easy-to-use CLI for processing documents with different personas and jobs.
+Command Line Interface for Adobe Challenge 1B Document Intelligence System
+Supports both structured analysis and cohesive summary generation
 """
 
 import argparse
@@ -10,6 +9,7 @@ import os
 import sys
 from pathlib import Path
 from document_intelligence import DocumentIntelligenceProcessor
+from cohesive_summarizer import CohesiveSummarizer
 
 
 def load_config(config_path: str = "config.json") -> dict:
@@ -74,14 +74,18 @@ def validate_inputs(pdf_dir: str, persona: str, job: str) -> bool:
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Persona-Driven Document Intelligence System",
+        description="Adobe Challenge 1B - Document Intelligence System",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  python cli.py --pdf-dir ./documents --persona "Investment Analyst" --job "Analyze revenue trends"
-  python cli.py --pdf-dir ./reports --persona "Research Scientist" --job "Extract methodology" --output results.json
+  # Structured analysis (original approach)
+  python cli.py --pdf-dir documents --persona "Investment Analyst" --job "Analyze revenue trends"
+  
+  # Cohesive summary (new approach) 
+  python cli.py --pdf-dir documents --persona "Investment Analyst" --job "Analyze revenue trends" --cohesive
+  
+  # List available personas
   python cli.py --list-personas
-  python cli.py --list-jobs
         """
     )
     
@@ -115,6 +119,19 @@ Examples:
         type=str,
         default='config.json',
         help='Configuration file path (default: config.json)'
+    )
+    
+    parser.add_argument(
+        '--cohesive',
+        action='store_true',
+        help='Generate cohesive 500-word summary instead of structured analysis'
+    )
+    
+    parser.add_argument(
+        '--max-words',
+        type=int,
+        default=500,
+        help='Maximum words in cohesive summary (default: 500)'
     )
     
     parser.add_argument(
@@ -160,24 +177,51 @@ Examples:
     if not validate_inputs(args.pdf_dir, args.persona, args.job):
         sys.exit(1)
     
+    # Configure logging
+    if args.verbose:
+        import logging
+        logging.basicConfig(level=logging.DEBUG)
+    
     # Process documents
     try:
-        print("Initializing Document Intelligence Processor...")
-        processor = DocumentIntelligenceProcessor()
+        if args.cohesive:
+            # Use cohesive summarizer
+            print("🔄 Initializing Cohesive Summarizer...")
+            print(f"📄 Generating cohesive summary with persona: {args.persona}")
+            print(f"🎯 Job: {args.job}")
+            print(f"📊 Max words: {args.max_words}")
+            
+            summarizer = CohesiveSummarizer()
+            result = summarizer.generate_cohesive_summary(
+                pdf_dir=args.pdf_dir,
+                persona=args.persona,
+                job=args.job,
+                max_words=args.max_words
+            )
+            
+            print(f"✅ Generated cohesive summary: {result['metadata']['summary_word_count']} words")
+            
+        else:
+            # Use original structured processor
+            print("🔄 Initializing Document Intelligence Processor...")
+            print(f"📄 Processing documents with persona: {args.persona}")
+            print(f"🎯 Job: {args.job}")
+            
+            processor = DocumentIntelligenceProcessor()
+            result = processor.process_documents(
+                pdf_dir=args.pdf_dir,
+                persona=args.persona,
+                job=args.job,
+                output_file=args.output
+            )
+            
+            print(f"✅ Processed {len(result['extracted_sections'])} sections")
         
-        print(f"\nProcessing Configuration:")
-        print(f"  PDF Directory: {args.pdf_dir}")
-        print(f"  Persona: {args.persona}")
-        print(f"  Job: {args.job}")
-        print(f"  Output File: {args.output}")
-        
-        # Run processing
-        result = processor.process_documents(
-            pdf_dir=args.pdf_dir,
-            persona=args.persona,
-            job=args.job,
-            output_file=args.output
-        )
+        # Save results
+        print(f"\n💾 Saving results to: {args.output}")
+        os.makedirs(os.path.dirname(os.path.abspath(args.output)), exist_ok=True)
+        with open(args.output, 'w', encoding='utf-8') as f:
+            json.dump(result, f, indent=2, ensure_ascii=False)
         
         # Display results summary
         print("\n" + "="*60)
@@ -185,27 +229,42 @@ Examples:
         print("="*60)
         
         metadata = result['metadata']
-        print(f"Documents Processed: {len(metadata['input_documents'])}")
-        print(f"Processing Time: {metadata['processing_time_seconds']} seconds")
-        print(f"Total Chunks: {metadata['total_chunks_processed']}")
-        print(f"Relevant Sections Found: {len(result['extracted_sections'])}")
-        print(f"Results saved to: {args.output}")
+        print(f"📁 Documents Processed: {len(metadata['input_documents'])}")
+        print(f"⏱️  Processing Time: {metadata['processing_time_seconds']} seconds")
+        print(f"💾 Results saved to: {args.output}")
         
-        # Show top sections if found
-        if result['extracted_sections']:
-            print(f"\nTop {len(result['extracted_sections'])} Relevant Sections:")
+        if args.cohesive:
+            # Show cohesive summary details
+            print(f"📝 Summary Word Count: {metadata['summary_word_count']}")
+            print(f"🔢 Total Content Chunks: {metadata['total_content_chunks']}")
+            
+            # Show preview
+            summary = result['cohesive_summary']
+            preview = summary[:200] + "..." if len(summary) > 200 else summary
+            print(f"\n📖 Summary Preview:")
             print("-" * 40)
-            for section in result['extracted_sections']:
-                print(f"  Rank {section['importance_rank']}: {section['document']} (Page {section['page_number']})")
-                print(f"    {section['section_title']}")
+            print(preview)
+            
+        else:
+            # Show structured analysis details
+            print(f"🔍 Total Chunks: {metadata['total_chunks_processed']}")
+            print(f"📋 Relevant Sections Found: {len(result['extracted_sections'])}")
+            
+            # Show top sections if found
+            if result['extracted_sections']:
+                print(f"\n🏆 Top {len(result['extracted_sections'])} Relevant Sections:")
+                print("-" * 40)
+                for section in result['extracted_sections']:
+                    print(f"  Rank {section['importance_rank']}: {section['document']} (Page {section['page_number']})")
+                    print(f"    {section['section_title']}")
         
-        print(f"\nFull results available in: {args.output}")
+        print(f"\n📂 Full results available in: {args.output}")
         
     except KeyboardInterrupt:
-        print("\nProcessing interrupted by user.")
+        print("\n❌ Processing interrupted by user.")
         sys.exit(1)
     except Exception as e:
-        print(f"\nError during processing: {str(e)}")
+        print(f"\n❌ Error during processing: {str(e)}")
         if args.verbose:
             import traceback
             traceback.print_exc()
