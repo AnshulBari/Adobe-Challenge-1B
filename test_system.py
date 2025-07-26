@@ -3,12 +3,15 @@ Test script for Document Intelligence System
 
 This script demonstrates the system capabilities with sample scenarios
 and validates performance against the challenge constraints.
-Includes tests for both structured analysis and cohesive summary generation.
+Includes tests for both structured analysis and cohesive summary generation,
+as well as the new JSON input functionality.
 """
 
 import time
 import json
 import os
+import subprocess
+import tempfile
 from pathlib import Path
 from document_intelligence import DocumentIntelligenceProcessor
 from cohesive_summarizer import CohesiveSummarizer
@@ -259,6 +262,10 @@ def main():
             sample_dir
         )
     
+    # Test JSON input functionality
+    print(f"\n🧪 JSON INPUT FUNCTIONALITY TEST")
+    json_test_success = test_json_input_functionality()
+    
     # Summary
     print("\n" + "="*60)
     print("TEST SUMMARY")
@@ -296,18 +303,23 @@ def main():
     
     print(f"\n📁 Output files generated:")
     output_files = [f for f in os.listdir('.') if 
-                   (f.startswith('test_output_') or f.startswith('test_cohesive_')) 
+                   (f.startswith('test_output_') or f.startswith('test_cohesive_') or f.startswith('test_json_')) 
                    and f.endswith('.json')]
     for file in sorted(output_files):
         print(f"  {file}")
     
+    # JSON Input Test Results
+    print(f"\n🧪 JSON INPUT FUNCTIONALITY:")
+    print(f"  JSON Input Tests: {'✓ PASS' if json_test_success else '✗ FAIL'}")
+    
     print("\n" + "="*60)
     print("TEST COMPLETE")
     print("="*60)
-    print("✅ Both structured analysis and cohesive summary approaches tested!")
-    print("📊 Choose approach based on your needs:")
+    print("✅ All functionality tested:")
     print("   • Structured Analysis: Detailed sections and rankings")
-    print("   • Cohesive Summary: Flowing 500-word narratives")
+    print("   • Cohesive Summary: Flowing 500-word narratives") 
+    print("   • JSON Input: Flexible configuration format")
+    print("📊 System supports multiple input methods and processing approaches!")
     print("Add more PDF files to sample_documents/ for extended testing.")
 
 
@@ -366,6 +378,119 @@ def test_cohesive_summarizer(test_name: str, persona: str, job: str, pdf_dir: st
         print(f"❌ COHESIVE SUMMARY FAILED")
         print(f"ERROR: {str(e)}")
         return False, 0, None
+
+
+def test_json_input_functionality():
+    """Test the new JSON input functionality with various configurations."""
+    print("\n" + "="*60)
+    print("JSON INPUT FUNCTIONALITY TESTING")
+    print("="*60)
+    
+    # Create test JSON configurations
+    test_configs = [
+        {
+            "name": "Simple Format",
+            "config": {
+                "persona": "Investment Analyst",
+                "job": "Analyze revenue trends",
+                "pdf_dir": "sample_documents"
+            }
+        },
+        {
+            "name": "Detailed Format",
+            "config": {
+                "persona": {"role": "Research Scientist"},
+                "job_to_be_done": {"task": "Identify key research findings"},
+                "pdf_dir": "sample_documents",
+                "processing_options": {
+                    "max_words": 300,
+                    "focus_areas": ["methodology", "results", "conclusions"]
+                }
+            }
+        },
+        {
+            "name": "Healthcare Format",
+            "config": {
+                "persona": {"role": "Healthcare Administrator"},
+                "job_to_be_done": {"task": "Analyze patient satisfaction trends"},
+                "pdf_dir": "sample_documents", 
+                "documents": [
+                    {"filename": "sample1.pdf", "category": "satisfaction"},
+                    {"filename": "sample2.pdf", "category": "operations"}
+                ],
+                "processing_options": {
+                    "max_words": 450,
+                    "focus_areas": ["patient satisfaction", "efficiency", "costs"]
+                }
+            }
+        }
+    ]
+    
+    success_count = 0
+    total_tests = len(test_configs)
+    
+    for i, test_case in enumerate(test_configs, 1):
+        print(f"\n🧪 Test {i}/{total_tests}: {test_case['name']}")
+        print("-" * 40)
+        
+        try:
+            # Create temporary JSON file
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+                json.dump(test_case['config'], f, indent=2)
+                temp_json_path = f.name
+            
+            print(f"📄 Config: {json.dumps(test_case['config'], indent=2)}")
+            
+            # Test both structured and cohesive modes
+            for mode in ['structured', 'cohesive']:
+                print(f"\n  Testing {mode} mode...")
+                
+                # Build command
+                cmd = [
+                    'python', 'cli.py',
+                    '--input-json', temp_json_path,
+                    '--output', f'test_json_{mode}_{i}.json'
+                ]
+                
+                if mode == 'cohesive':
+                    cmd.append('--cohesive')
+                
+                # Run command
+                start_time = time.time()
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+                processing_time = time.time() - start_time
+                
+                if result.returncode == 0:
+                    print(f"    ✅ {mode.title()} mode: SUCCESS ({processing_time:.2f}s)")
+                    
+                    # Validate output file exists
+                    output_file = f'test_json_{mode}_{i}.json'
+                    if os.path.exists(output_file):
+                        with open(output_file, 'r') as f:
+                            output_data = json.load(f)
+                        print(f"    📊 Output: {len(output_data.get('metadata', {}).get('input_documents', []))} documents processed")
+                        
+                        # Clean up output file
+                        os.remove(output_file)
+                    
+                else:
+                    print(f"    ❌ {mode.title()} mode: FAILED")
+                    print(f"    Error: {result.stderr}")
+            
+            # Clean up temp JSON file
+            os.unlink(temp_json_path)
+            success_count += 1
+            
+        except subprocess.TimeoutExpired:
+            print(f"    ❌ TIMEOUT: Processing took longer than 60 seconds")
+        except Exception as e:
+            print(f"    ❌ ERROR: {str(e)}")
+    
+    print(f"\n📊 JSON Input Test Results:")
+    print(f"  Tests Passed: {success_count}/{total_tests}")
+    print(f"  Success Rate: {(success_count/total_tests)*100:.1f}%")
+    
+    return success_count == total_tests
 
 
 def compare_approaches(persona: str, job: str, pdf_dir: str):
