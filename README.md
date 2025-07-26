@@ -1,14 +1,82 @@
-# Persona-Driven Document Intelligence System
+# 🧠 Adobe Challenge 1B - Document Intelligence System
 
-A lightweight, CPU-only document processing system that extracts and ranks relevant content based on persona and job requirements. 
+> **Persona-driven document processing that extracts relevant content based on user roles and tasks**
+
+[![Docker](https://img.shield## 📁 Project Structure
+
+```
+Adobe-Challenge-1B/
+├── 🧠 Core Application
+│   ├── cli.py                     # Command line interface
+│   ├── cohesive_summarizer.py     # ML processing logic  
+│   └── document_intelligence.py   # Document processor class
+├── 🐳 Docker Configuration
+│   ├── Dockerfile                 # Container configuration
+│   ├── Dockerfile.prod            # Production variant
+│   ├── docker-compose.yml         # Service orchestration
+│   └── .dockerignore             # Build exclusions
+├── 📁 Data Directories
+│   ├── input/                     # PDF input files
+│   └── output/                    # Processing results (results.json)
+├── 🛠️ Development & Testing
+│   ├── requirements.txt           # Python dependencies
+│   ├── setup.py                  # Package setup
+│   ├── test_system.py            # System tests
+│   └── validate_system.py        # Validation scripts
+├── 📚 Documentation
+│   ├── README.md                 # This file
+│   ├── DOCKER.md                 # Docker usage guide
+│   ├── PROJECT_SUMMARY.md        # Project overview
+│   ├── CHANGELOG.md              # Version history
+│   └── LICENSE                   # MIT License
+└── 🔧 Configuration
+    ├── .gitignore                # Git exclusions
+    └── .dockerignore             # Docker build exclusions
+```Docker-Ready-blue?logo=docker)](./Dockerfile)
+[![Python](https://img.shields.io/badge/Python-3.11+-green?logo=python)](./requirements.txt)
+[![License](https://img.shields.io/badge/License-MIT-yellow)](./LICENSE)
 
 ## 🎯 Adobe Challenge 1B Compliance
 
 **✅ All Requirements Met:**
 - **Model Size**: ~90MB (all-MiniLM-L6-v2) - **well under 1GB limit**
-- **Processing Time**: <60s for typical documents  
+- **Processing Time**: <30s for typical documents  
 - **CPU-Only**: No GPU dependencies required
 - **Offline**: Works without internet after initial setup
+
+## 🚀 Quick Start
+
+### Using Docker (Recommended)
+
+```bash
+# Clone the repository
+git clone https://github.com/AnshulBari/Adobe-Challenge-1B.git
+cd Adobe-Challenge-1B
+
+# Place your PDF files in the input directory
+mkdir input
+cp your-document.pdf input/
+
+# Run the application
+docker-compose run --rm document-intelligence python cli.py \
+  --pdf-dir /app/input \
+  --persona "Your Role" \
+  --job "Your specific task" \
+  --output /app/output/results.json
+
+# View results
+cat output/results.json
+```
+
+### Local Installation
+
+```bash
+# Install dependencies
+pip install -r requirements.txt
+
+# Run the application
+python cli.py --pdf-dir ./input --persona "Data Analyst" --job "Extract insights" --output ./output/results.json
+```
 
 ## 🔧 Key Features
 
@@ -119,7 +187,40 @@ print(f"Processing time: {result['metadata']['processing_time_seconds']} seconds
 print(f"Top sections: {len(result['extracted_sections'])}")
 ```
 
-## 📁 Project Structure
+## � Examples
+
+### Example 1: Prompt Engineering Student
+```bash
+docker-compose run --rm document-intelligence python cli.py \
+  --pdf-dir /app/input \
+  --persona "Prompt Engineer Aspiring Student" \
+  --job "Extract relevant sections for learning prompt engineering" \
+  --output /app/output/results.json
+```
+
+**Input**: Gemini for Google Workspace Prompting Guide 101 (5.26 MB)  
+**Output**: 5 relevant sections focusing on prompt design fundamentals  
+**Processing Time**: ~28 seconds
+
+### Example 2: Investment Analyst
+```bash
+python cli.py \
+  --pdf-dir ./input \
+  --persona "Investment Analyst" \
+  --job "Analyze revenue trends and financial metrics" \
+  --output ./output/analysis.json
+```
+
+### Example 3: Research Scientist
+```bash
+python cli.py \
+  --pdf-dir ./research_papers \
+  --persona "Research Scientist" \
+  --job "Extract methodology and experimental results" \
+  --output ./output/research_insights.json
+```
+
+## �📁 Project Structure
 
 ```
 Challenge-1B/

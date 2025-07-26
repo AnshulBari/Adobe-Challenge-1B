@@ -7,7 +7,7 @@ services:
       dockerfile: Dockerfile
     container_name: adobe-challenge-1b
     volumes:
-      - ./sample_documents:/app/input:ro
+      - ./input:/app/input:ro
       - ./output:/app/output:rw
       - model-cache:/app/.cache
     environment:

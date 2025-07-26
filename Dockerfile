@@ -1,5 +1,5 @@
 # Adobe Challenge 1B - Document Intelligence System
-# Lightweight Docker image for CPU-only operation with <1GB constraint
+# Optimized Docker image for faster builds
 
 FROM python:3.11-slim
 
@@ -17,21 +17,24 @@ ENV TORCH_HOME=/app/.cache
 RUN apt-get update && apt-get install -y \
     build-essential \
     curl \
+    wget \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
 
 # Copy requirements first for better caching
 COPY requirements.txt .
 
-# Install Python dependencies
+# Install Python dependencies with CPU-only PyTorch for faster installation
 RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir torch torchvision --index-url https://download.pytorch.org/whl/cpu && \
+    pip install --no-cache-dir sentence-transformers flask nltk && \
     pip install --no-cache-dir -r requirements.txt
 
 # Download and cache the model during build
 RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('all-MiniLM-L6-v2')"
 
 # Download NLTK data
-RUN python -c "import nltk; nltk.download('punkt', quiet=True)"
+RUN python -c "import nltk; nltk.download('punkt', quiet=True); nltk.download('punkt_tab', quiet=True)"
 
 # Copy application code
 COPY . .
