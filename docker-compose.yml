@@ -20,8 +20,48 @@ services:
     cpus: '2.0'
     restart: unless-stopped
     
-    # Default command - can be overridden
+    # JSON Processing Mode (default command)
+    # command: python json_processor.py --input /app/input/challenge_input.json --output /app/output/results.json --base-dir /app/input
+    
+    # Legacy CLI Mode (alternative command)
     command: python cli.py --pdf-dir /app/input --persona "Investment Analyst" --job "Analyze revenue trends" --output /app/output/results.json
+
+  # JSON Processing Service (dedicated service for JSON mode)
+  json-processor:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: adobe-challenge-json-processor
+    volumes:
+      - ./input:/app/input:ro
+      - ./output:/app/output:rw
+      - model-cache:/app/.cache
+    environment:
+      - PYTHONUNBUFFERED=1
+      - LOG_LEVEL=INFO
+      - TRANSFORMERS_CACHE=/app/.cache
+      - HF_HOME=/app/.cache
+      - TORCH_HOME=/app/.cache
+    mem_limit: 2g
+    cpus: '2.0'
+    restart: unless-stopped
+    command: >
+      sh -c "
+        echo 'Adobe Challenge 1B - JSON Document Processor Ready' &&
+        echo 'Looking for challenge_input.json in /app/input...' &&
+        if [ -f /app/input/challenge_input.json ]; then
+          echo 'Found challenge_input.json, processing...' &&
+          python json_processor.py --input /app/input/challenge_input.json --output /app/output/challenge_results.json --base-dir /app/input --verbose
+        else
+          echo 'No challenge_input.json found. Available files:' &&
+          ls -la /app/input/ &&
+          echo 'Creating example input and processing test case...' &&
+          python json_processor.py --input /app/input/test_input.json --output /app/output/test_results.json --base-dir /app/input --verbose
+        fi &&
+        echo 'Processing complete. Keeping container alive...' &&
+        tail -f /dev/null
+      "
+    profiles: ["json"]
 
   # Service for running validation
   validator:
@@ -31,6 +71,8 @@ services:
     container_name: adobe-challenge-1b-validator
     volumes:
       - model-cache:/app/.cache
+      - ./input:/app/input:ro
+      - ./output:/app/output:ro
     environment:
       - PYTHONUNBUFFERED=1
       - LOG_LEVEL=DEBUG

@@ -5,8 +5,110 @@
 [![Docker](https://img.shield## 📁 Project Structure
 
 ```
-Adobe-Challenge-1B/
-├── 🧠 Core Application
+Adobe-Cprint(f"Top sections: {len(result['extracted_sections'])}")
+```
+
+## 📊 JSON Interface Specification
+
+### Input Format
+
+The JSON interface accepts structured input for batch processing and standardized workflows:
+
+```json
+{
+  "challenge_info": {
+    "challenge_id": "round_1b_XXX",
+    "test_case_name": "specific_test_case",
+    "description": "Optional description"
+  },
+  "documents": [
+    {"filename": "doc.pdf", "title": "Document Title"}
+  ],
+  "persona": {"role": "User Persona"},
+  "job_to_be_done": {"task": "Use case description"}
+}
+```
+
+**Example Input** (Travel Planning):
+```json
+{
+  "challenge_info": {
+    "challenge_id": "round_1b_002",
+    "test_case_name": "travel_planner",
+    "description": "France Travel Planning Challenge"
+  },
+  "documents": [
+    {"filename": "South of France - Cities.pdf", "title": "South of France - Cities"},
+    {"filename": "South of France - Cuisine.pdf", "title": "South of France - Cuisine"},
+    {"filename": "South of France - Things to Do.pdf", "title": "South of France - Things to Do"}
+  ],
+  "persona": {"role": "Travel Planner"},
+  "job_to_be_done": {"task": "Plan a trip of 4 days for a group of 10 college friends."}
+}
+```
+
+### Output Format
+
+The system produces standardized JSON output with metadata and extracted insights:
+
+```json
+{
+  "metadata": {
+    "input_documents": ["list of processed files"],
+    "persona": "User Persona",
+    "job_to_be_done": "Task description", 
+    "processing_timestamp": "ISO timestamp",
+    "processing_time_seconds": 28.45
+  },
+  "extracted_sections": [
+    {
+      "document": "source.pdf",
+      "section_title": "Section Title",
+      "importance_rank": 1,
+      "page_number": 1,
+      "relevance_score": 0.892
+    }
+  ],
+  "subsection_analysis": [
+    {
+      "document": "source.pdf", 
+      "refined_text": "Most relevant extracted content...",
+      "page_number": 1,
+      "relevance_score": 0.892
+    }
+  ]
+}
+```
+
+### JSON Processing Commands
+
+```bash
+# Process with JSON input/output
+python json_processor.py -i input/challenge_input.json -o output/results.json
+
+# Docker JSON processing
+docker-compose --profile json up json-processor
+
+# Verbose mode for debugging
+python json_processor.py -i input/test.json -o output/test.json --verbose
+```
+
+## 📋 Examples
+
+### Example 1: Prompt Engineering Student
+```bash
+docker-compose run --rm document-intelligence python cli.py \
+  --pdf-dir /app/input \
+  --persona "Prompt Engineer Aspiring Student" \
+  --job "Extract relevant sections for learning prompt engineering" \
+  --output /app/output/results.json
+```
+
+**Input**: Gemini for Google Workspace Prompting Guide 101 (5.26 MB)  
+**Output**: 5 relevant sections focusing on prompt design fundamentals  
+**Processing Time**: ~28 seconds
+
+### Example 2: Investment Analyst Core Application
 │   ├── cli.py                     # Command line interface
 │   ├── cohesive_summarizer.py     # ML processing logic  
 │   └── document_intelligence.py   # Document processor class
@@ -46,7 +148,45 @@ Adobe-Challenge-1B/
 
 ## 🚀 Quick Start
 
-### Using Docker (Recommended)
+### JSON Interface (Recommended)
+
+The Adobe Challenge 1B system now supports a standardized JSON interface for streamlined processing:
+
+```bash
+# Clone the repository
+git clone https://github.com/AnshulBari/Adobe-Challenge-1B.git
+cd Adobe-Challenge-1B
+
+# Place your PDF files in the input directory
+mkdir input output
+
+# Create a challenge input JSON file
+cat > input/challenge_input.json << 'EOF'
+{
+  "challenge_info": {
+    "challenge_id": "round_1b_001",
+    "test_case_name": "analysis_task",
+    "description": "Document analysis challenge"
+  },
+  "documents": [
+    {"filename": "your-document.pdf", "title": "Your Document"}
+  ],
+  "persona": {"role": "Data Analyst"},
+  "job_to_be_done": {"task": "Extract key insights and trends"}
+}
+EOF
+
+# Run with Docker (JSON mode)
+docker-compose --profile json up json-processor
+
+# Or run locally
+python json_processor.py -i input/challenge_input.json -o output/results.json
+
+# View results
+cat output/results.json
+```
+
+### Using Docker (Legacy CLI)
 
 ```bash
 # Clone the repository
@@ -73,6 +213,13 @@ cat output/results.json
 ```bash
 # Install dependencies
 pip install -r requirements.txt
+
+# JSON Processing (recommended)
+python json_processor.py --input ./input/challenge_input.json --output ./output/results.json
+
+# CLI Processing (legacy)
+python cli.py --pdf-dir ./input --persona "Data Analyst" --job "Extract insights" --output ./output/results.json
+```
 
 # Run the application
 python cli.py --pdf-dir ./input --persona "Data Analyst" --job "Extract insights" --output ./output/results.json

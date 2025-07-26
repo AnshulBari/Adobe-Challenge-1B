@@ -59,6 +59,12 @@ class DocumentIntelligenceProcessor:
         except LookupError:
             logger.info("Downloading NLTK punkt tokenizer...")
             nltk.download('punkt', quiet=True)
+        
+        try:
+            nltk.data.find('tokenizers/punkt_tab')
+        except LookupError:
+            logger.info("Downloading NLTK punkt_tab tokenizer...")
+            nltk.download('punkt_tab', quiet=True)
     
     def _load_model(self):
         """Lazy load the embedding model to save memory."""
@@ -115,7 +121,7 @@ class DocumentIntelligenceProcessor:
         return chunks
     
     def rank_chunks_by_relevance(self, chunks: List[Dict[str, Any]], 
-                                persona: str, job: str, top_k: int = 5) -> List[int]:
+                                persona: str, job: str, max_chunks: int = 5) -> List[int]:
         """
         Rank text chunks by relevance to persona and job using semantic similarity.
         
@@ -123,10 +129,10 @@ class DocumentIntelligenceProcessor:
             chunks: List of text chunks with metadata
             persona: Target persona (e.g., "Investment Analyst")
             job: Job to be done (e.g., "Analyze revenue trends")
-            top_k: Number of top chunks to return
+            max_chunks: Maximum number of top chunks to return
             
         Returns:
-            List of indices of top-k most relevant chunks
+            List of indices of max_chunks most relevant chunks
         """
         if not chunks:
             return []
@@ -151,7 +157,7 @@ class DocumentIntelligenceProcessor:
         cos_sim = np.dot(chunk_embeds, query_embed.T).flatten()
         
         # Get top-k indices
-        top_k = min(top_k, len(chunks))
+        top_k = min(max_chunks, len(chunks))
         ranked_indices = np.argsort(cos_sim)[::-1][:top_k]
         
         logger.info(f"Top {top_k} chunks selected based on relevance scores")
@@ -203,23 +209,24 @@ class DocumentIntelligenceProcessor:
             section_title = ' '.join(chunk["text"].split()[:10])
             
             extracted_sections.append({
-                "document": chunk["source"],
+                "document": os.path.basename(chunk["source"]),
                 "page_number": chunk["page"],
                 "section_title": section_title,
-                "importance_rank": rank
+                "importance_rank": rank,
+                "relevance_score": float(sent_scores.max())
             })
             
             sub_sections.append({
-                "document": chunk["source"],
-                "section_title": section_title,
+                "document": os.path.basename(chunk["source"]),
                 "refined_text": ' '.join(top_sentences),
-                "page_number_constraints": chunk["page"]
+                "page_number": chunk["page"],
+                "relevance_score": float(sent_scores.max())
             })
         
         return extracted_sections, sub_sections
     
     def process_documents(self, pdf_dir: str, persona: str, job: str, 
-                         output_file: Optional[str] = None) -> Dict[str, Any]:
+                         output_file: Optional[str] = None, max_sections: int = 5) -> Dict[str, Any]:
         """
         Main processing function that orchestrates the entire pipeline.
         
@@ -228,6 +235,7 @@ class DocumentIntelligenceProcessor:
             persona: Target persona
             job: Job to be done
             output_file: Optional output JSON file path
+            max_sections: Maximum number of sections to extract (default: 5)
             
         Returns:
             Dictionary containing processed results
@@ -237,6 +245,7 @@ class DocumentIntelligenceProcessor:
         logger.info(f"PDF Directory: {pdf_dir}")
         logger.info(f"Persona: {persona}")
         logger.info(f"Job: {job}")
+        logger.info(f"Max sections: {max_sections}")
         
         # Step 1: Extract text from PDFs
         chunks = self.extract_text_from_pdfs(pdf_dir)
@@ -244,8 +253,8 @@ class DocumentIntelligenceProcessor:
             logger.error("No text chunks extracted. Check PDF directory and files.")
             return self._create_empty_result(pdf_dir, persona, job)
         
-        # Step 2: Rank chunks by relevance
-        top_chunk_indices = self.rank_chunks_by_relevance(chunks, persona, job)
+        # Step 2: Rank chunks by relevance (limit to max_sections)
+        top_chunk_indices = self.rank_chunks_by_relevance(chunks, persona, job, max_chunks=max_sections)
         
         # Step 3: Refine top chunks to sentences
         extracted_sections, sub_sections = self.refine_chunks_to_sentences(
@@ -256,16 +265,18 @@ class DocumentIntelligenceProcessor:
         processing_time = time.time() - start_time
         result = {
             "metadata": {
-                "input_documents": list(set(chunk["source"] for chunk in chunks)),
+                "input_documents": [os.path.basename(source) for source in set(chunk["source"] for chunk in chunks)],
                 "persona": persona,
                 "job_to_be_done": job,
-                "processing_timestamp": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
+                "processing_timestamp": datetime.utcnow().isoformat(),
                 "processing_time_seconds": round(processing_time, 2),
                 "total_chunks_processed": len(chunks),
                 "top_chunks_selected": len(top_chunk_indices)
             },
             "extracted_sections": extracted_sections,
-            "sub_section_analysis": sub_sections
+            "subsection_analysis": sub_sections,  # Updated field name to match expected format
+            "most_relevant_sections": extracted_sections,  # For backward compatibility
+            "detailed_analysis": sub_sections  # For backward compatibility
         }
         
         logger.info(f"Processing completed in {processing_time:.2f} seconds")
