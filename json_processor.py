@@ -227,34 +227,46 @@ class JSONDocumentProcessor:
             "input_documents": input_documents,
             "persona": input_data['persona']['role'],
             "job_to_be_done": input_data['job_to_be_done']['task'],
-            "processing_timestamp": datetime.now().isoformat(),
-            "processing_time_seconds": round(processing_time, 2),
-            "challenge_info": input_data['challenge_info']
+            "processing_timestamp": datetime.now().isoformat()
         }
         
         # Convert extracted sections
         extracted_sections = []
         if 'most_relevant_sections' in results:
             for i, section in enumerate(results['most_relevant_sections'], 1):
+                # Clean up section titles to be more descriptive
+                section_title = section.get('section_title', f"Section {i}")
+                # Remove truncated text and make titles more meaningful
+                if len(section_title) > 80:
+                    section_title = section_title[:77] + "..."
+                elif section_title.startswith("•"):
+                    # Extract meaningful title from bullet points
+                    section_title = section_title.strip("• ").split(":")[0].strip()
+                
                 extracted_sections.append({
                     "document": section.get('document', os.path.basename(section.get('source', 'unknown'))),
-                    "section_title": section.get('section_title', f"Section {i}"),
+                    "section_title": section_title,
                     "importance_rank": section.get('importance_rank', i),
-                    "page_number": section.get('page_number', 1),
-                    "relevance_score": round(section.get('relevance_score', 0.0), 3)
+                    "page_number": section.get('page_number', 1)
                 })
         elif 'extracted_sections' in results:
             extracted_sections = results['extracted_sections']
         
-        # Convert subsection analysis
+        # Convert subsection analysis with better refined text
         subsection_analysis = []
         if 'detailed_analysis' in results:
             for analysis in results['detailed_analysis']:
+                # Get more comprehensive refined text
+                refined_text = analysis.get('content', analysis.get('refined_text', ''))
+                
+                # If text is too short, try to get more context
+                if len(refined_text) < 100:
+                    refined_text = analysis.get('full_text', refined_text)
+                
                 subsection_analysis.append({
                     "document": analysis.get('document', os.path.basename(analysis.get('source', 'unknown'))),
-                    "refined_text": analysis.get('content', analysis.get('refined_text', '')),
-                    "page_number": analysis.get('page', analysis.get('page_number', 1)),
-                    "relevance_score": round(analysis.get('score', analysis.get('relevance_score', 0.0)), 3)
+                    "refined_text": refined_text,
+                    "page_number": analysis.get('page', analysis.get('page_number', 1))
                 })
         elif 'subsection_analysis' in results:
             subsection_analysis = results['subsection_analysis']

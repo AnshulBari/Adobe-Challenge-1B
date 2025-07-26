@@ -156,12 +156,40 @@ class DocumentIntelligenceProcessor:
         # Compute cosine similarity
         cos_sim = np.dot(chunk_embeds, query_embed.T).flatten()
         
-        # Get top-k indices
+        # Get top-k indices, ensuring diversity across documents
         top_k = min(max_chunks, len(chunks))
-        ranked_indices = np.argsort(cos_sim)[::-1][:top_k]
+        all_ranked_indices = np.argsort(cos_sim)[::-1]
         
-        logger.info(f"Top {top_k} chunks selected based on relevance scores")
-        return ranked_indices.tolist()
+        # Group chunks by document
+        doc_chunks = {}
+        for idx in all_ranked_indices:
+            chunk = chunks[idx]
+            doc_name = os.path.basename(chunk["source"])
+            if doc_name not in doc_chunks:
+                doc_chunks[doc_name] = []
+            doc_chunks[doc_name].append((idx, cos_sim[idx]))
+        
+        # Select best chunk from each document first
+        ranked_indices = []
+        used_documents = set()
+        
+        # First pass: get the best chunk from each document
+        for doc_name, doc_chunk_list in doc_chunks.items():
+            if len(ranked_indices) < top_k:
+                best_idx, best_score = doc_chunk_list[0]  # Already sorted by score
+                ranked_indices.append(best_idx)
+                used_documents.add(doc_name)
+        
+        # Second pass: if we still need more chunks, get additional ones
+        remaining_slots = top_k - len(ranked_indices)
+        if remaining_slots > 0:
+            for idx in all_ranked_indices:
+                if idx not in ranked_indices and remaining_slots > 0:
+                    ranked_indices.append(idx)
+                    remaining_slots -= 1
+        
+        logger.info(f"Top {len(ranked_indices)} chunks selected from {len(used_documents)} different documents")
+        return ranked_indices
     
     def refine_chunks_to_sentences(self, chunks: List[Dict[str, Any]], 
                                   chunk_indices: List[int], persona: str, job: str) -> tuple:
@@ -201,12 +229,30 @@ class DocumentIntelligenceProcessor:
             sent_embeds = self.model.encode(sentences, show_progress_bar=False)
             sent_scores = np.dot(sent_embeds, query_embed.T).flatten()
             
-            # Get top 2 sentences
-            top_sent_indices = np.argsort(sent_scores)[::-1][:2]
-            top_sentences = [sentences[i] for i in top_sent_indices if i < len(sentences)]
+            # Get top 3-5 sentences for better content
+            top_sent_count = min(5, max(3, len(sentences) // 3))
+            top_sent_indices = np.argsort(sent_scores)[::-1][:top_sent_count]
+            top_sentences = [sentences[i] for i in sorted(top_sent_indices) if i < len(sentences)]
             
-            # Create section title from first 10 words
-            section_title = ' '.join(chunk["text"].split()[:10])
+            # Create more descriptive section title
+            chunk_text = chunk["text"].strip()
+            lines = chunk_text.split('\n')
+            
+            # Try to find a good title from the first few lines
+            section_title = ""
+            for line in lines[:3]:
+                line = line.strip()
+                if line and not line.startswith("•") and len(line) > 10:
+                    section_title = line
+                    break
+            
+            # Fallback to first 10 words if no good title found
+            if not section_title:
+                section_title = ' '.join(chunk_text.split()[:10])
+            
+            # Clean up the title
+            if len(section_title) > 80:
+                section_title = section_title[:77] + "..."
             
             extracted_sections.append({
                 "document": os.path.basename(chunk["source"]),
@@ -216,11 +262,15 @@ class DocumentIntelligenceProcessor:
                 "relevance_score": float(sent_scores.max())
             })
             
+            # Join sentences for better refined text
+            refined_text = ' '.join(top_sentences)
+            
             sub_sections.append({
                 "document": os.path.basename(chunk["source"]),
-                "refined_text": ' '.join(top_sentences),
+                "refined_text": refined_text,
                 "page_number": chunk["page"],
-                "relevance_score": float(sent_scores.max())
+                "relevance_score": float(sent_scores.max()),
+                "full_text": chunk_text  # Keep full text for fallback
             })
         
         return extracted_sections, sub_sections
