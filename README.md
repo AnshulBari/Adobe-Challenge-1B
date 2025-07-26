@@ -300,18 +300,64 @@ nltk.download('punkt')
 ### Basic Usage
 
 #### Command Line Interface
+
+**Traditional Command Line Arguments:**
 ```bash
-# Process documents with specific persona and job
+# Structured analysis (detailed sections)
 python cli.py --pdf-dir ./documents --persona "Investment Analyst" --job "Analyze revenue trends and R&D investments"
 
-# List available personas
+# Cohesive summary (flowing narrative)
+python cli.py --pdf-dir ./documents --persona "Investment Analyst" --job "Analyze revenue trends" --cohesive
+
+# Custom word limit for cohesive summary
+python cli.py --pdf-dir ./documents --persona "Research Scientist" --job "Extract key findings" --cohesive --max-words 300
+```
+
+**New JSON Input Support:**
+```bash
+# Use JSON configuration file
+python cli.py --input-json config.json --cohesive
+
+# JSON config with directory override
+python cli.py --input-json config.json --pdf-dir ./custom_docs
+
+# List available personas and jobs
 python cli.py --list-personas
-
-# List sample jobs
 python cli.py --list-jobs
+```
 
-# Specify custom output file
-python cli.py --pdf-dir ./reports --persona "Research Scientist" --job "Extract methodology" --output results.json
+**JSON Configuration Format:**
+```json
+{
+  "persona": {"role": "Investment Analyst"},
+  "job_to_be_done": {"task": "Analyze revenue trends and R&D investments"},
+  "pdf_dir": "sample_documents",
+  "documents": [
+    {"filename": "financial_report_q1.pdf"},
+    {"filename": "annual_report.pdf"}
+  ],
+  "processing_options": {
+    "max_words": 500,
+    "focus_areas": ["revenue growth", "R&D spending", "profitability"]
+  }
+}
+```
+
+**Flexible JSON Formats Supported:**
+```json
+// Simple format
+{
+  "persona": "Investment Analyst",
+  "job": "Analyze revenue trends",
+  "pdf_dir": "documents"
+}
+
+// Detailed format  
+{
+  "persona": {"role": "Research Scientist"},
+  "job_to_be_done": {"task": "Extract methodology"},
+  "processing_options": {"max_words": 300}
+}
 ```
 
 #### Python API

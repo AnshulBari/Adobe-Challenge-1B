@@ -22,6 +22,57 @@ def load_config(config_path: str = "config.json") -> dict:
         return {}
 
 
+def parse_json_input(json_path: str) -> tuple:
+    """
+    Parse JSON input file and extract persona, job, and pdf_dir.
+    
+    Supports multiple JSON formats:
+    - {"persona": "string"} or {"persona": {"role": "string"}}
+    - {"job": "string"} or {"job_to_be_done": {"task": "string"}}
+    - {"pdf_dir": "path"} or inferred from documents array
+    
+    Returns:
+        tuple: (persona, job, pdf_dir, metadata)
+    """
+    try:
+        with open(json_path, 'r') as f:
+            config = json.load(f)
+    except FileNotFoundError:
+        raise FileNotFoundError(f"JSON configuration file '{json_path}' not found.")
+    except json.JSONDecodeError as e:
+        raise ValueError(f"Invalid JSON in '{json_path}': {str(e)}")
+    
+    # Extract persona
+    persona = None
+    if 'persona' in config:
+        if isinstance(config['persona'], dict):
+            persona = config['persona'].get('role') or config['persona'].get('name')
+        else:
+            persona = str(config['persona'])
+    
+    # Extract job
+    job = None
+    if 'job_to_be_done' in config:
+        if isinstance(config['job_to_be_done'], dict):
+            job = config['job_to_be_done'].get('task') or config['job_to_be_done'].get('description')
+        else:
+            job = str(config['job_to_be_done'])
+    elif 'job' in config:
+        job = str(config['job'])
+    
+    # Extract PDF directory
+    pdf_dir = config.get('pdf_dir', '.')
+    
+    # Additional metadata
+    metadata = {
+        'documents': config.get('documents', []),
+        'processing_options': config.get('processing_options', {}),
+        'focus_areas': config.get('processing_options', {}).get('focus_areas', [])
+    }
+    
+    return persona, job, pdf_dir, metadata
+
+
 def list_available_personas(config: dict):
     """Display available personas from config."""
     personas = config.get('personas', {})
@@ -78,15 +129,39 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Structured analysis (original approach)
+  # Structured analysis with command line arguments
   python cli.py --pdf-dir documents --persona "Investment Analyst" --job "Analyze revenue trends"
   
-  # Cohesive summary (new approach) 
+  # Cohesive summary with command line arguments
   python cli.py --pdf-dir documents --persona "Investment Analyst" --job "Analyze revenue trends" --cohesive
   
-  # List available personas
+  # Using JSON configuration file
+  python cli.py --input-json config.json --pdf-dir documents --cohesive
+  
+  # JSON configuration overrides PDF directory
+  python cli.py --input-json config.json
+  
+  # List available personas and jobs
   python cli.py --list-personas
+  python cli.py --list-jobs
+
+JSON Configuration Format:
+  {
+    "persona": {"role": "Investment Analyst"},
+    "job_to_be_done": {"task": "Analyze revenue trends"},
+    "pdf_dir": "sample_documents",
+    "documents": [
+      {"filename": "doc1.pdf"},
+      {"filename": "doc2.pdf"}
+    ]
+  }
         """
+    )
+    
+    parser.add_argument(
+        '--input-json',
+        type=str,
+        help='JSON configuration file with documents, persona, and job details'
     )
     
     parser.add_argument(
@@ -166,15 +241,53 @@ Examples:
         list_sample_jobs(config)
         return
     
+    # Process input - either from JSON file or command line arguments
+    pdf_dir = None
+    persona = None
+    job = None
+    json_metadata = {}
+    
+    if args.input_json:
+        # Load from JSON configuration file
+        try:
+            persona, job, pdf_dir, json_metadata = parse_json_input(args.input_json)
+            
+            # Command line PDF directory overrides JSON
+            if args.pdf_dir:
+                pdf_dir = args.pdf_dir
+            
+            print(f"📥 Loaded configuration from: {args.input_json}")
+            print(f"👤 Persona: {persona}")
+            print(f"🎯 Job: {job}")
+            print(f"📂 PDF Directory: {pdf_dir}")
+            
+            # Show additional info if available
+            if json_metadata.get('documents'):
+                print(f"📄 Configured documents: {len(json_metadata['documents'])}")
+            if json_metadata.get('focus_areas'):
+                print(f"🎯 Focus areas: {', '.join(json_metadata['focus_areas'][:3])}...")
+            
+        except (FileNotFoundError, ValueError) as e:
+            print(f"Error: {str(e)}")
+            sys.exit(1)
+        except Exception as e:
+            print(f"Error processing JSON configuration: {str(e)}")
+            sys.exit(1)
+    else:
+        # Use command line arguments
+        pdf_dir = args.pdf_dir
+        persona = args.persona
+        job = args.job
+    
     # Validate required arguments for processing
-    if not all([args.pdf_dir, args.persona, args.job]):
+    if not all([pdf_dir, persona, job]):
         parser.print_help()
-        print("\nError: --pdf-dir, --persona, and --job are required for processing.")
+        print("\nError: Either use --input-json OR provide --pdf-dir, --persona, and --job.")
         print("Use --list-personas and --list-jobs to see available options.")
         sys.exit(1)
     
     # Validate inputs
-    if not validate_inputs(args.pdf_dir, args.persona, args.job):
+    if not validate_inputs(pdf_dir, persona, job):
         sys.exit(1)
     
     # Configure logging
@@ -184,19 +297,24 @@ Examples:
     
     # Process documents
     try:
+        # Get max_words from JSON config if available, otherwise use command line arg
+        max_words = args.max_words
+        if args.input_json and 'max_words' in json_metadata.get('processing_options', {}):
+            max_words = json_metadata['processing_options']['max_words']
+        
         if args.cohesive:
             # Use cohesive summarizer
             print("🔄 Initializing Cohesive Summarizer...")
-            print(f"📄 Generating cohesive summary with persona: {args.persona}")
-            print(f"🎯 Job: {args.job}")
-            print(f"📊 Max words: {args.max_words}")
+            print(f"📄 Generating cohesive summary with persona: {persona}")
+            print(f"🎯 Job: {job}")
+            print(f"📊 Max words: {max_words}")
             
             summarizer = CohesiveSummarizer()
             result = summarizer.generate_cohesive_summary(
-                pdf_dir=args.pdf_dir,
-                persona=args.persona,
-                job=args.job,
-                max_words=args.max_words
+                pdf_dir=pdf_dir,
+                persona=persona,
+                job=job,
+                max_words=max_words
             )
             
             print(f"✅ Generated cohesive summary: {result['metadata']['summary_word_count']} words")
@@ -204,14 +322,14 @@ Examples:
         else:
             # Use original structured processor
             print("🔄 Initializing Document Intelligence Processor...")
-            print(f"📄 Processing documents with persona: {args.persona}")
-            print(f"🎯 Job: {args.job}")
+            print(f"📄 Processing documents with persona: {persona}")
+            print(f"🎯 Job: {job}")
             
             processor = DocumentIntelligenceProcessor()
             result = processor.process_documents(
-                pdf_dir=args.pdf_dir,
-                persona=args.persona,
-                job=args.job,
+                pdf_dir=pdf_dir,
+                persona=persona,
+                job=job,
                 output_file=args.output
             )
             
